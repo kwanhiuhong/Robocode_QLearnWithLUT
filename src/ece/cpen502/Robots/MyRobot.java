@@ -1,8 +1,8 @@
-package ece.cpen502;
+package ece.cpen502.Robots;
 
 import robocode.*;
 
-public class OwnRobot extends AdvancedRobot {
+public class MyRobot extends AdvancedRobot {
     public void run() {
         while (true) {
             // Replace the next 4 lines with any behavior you would like
