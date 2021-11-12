@@ -1,5 +1,5 @@
 <component name="libraryTable">
-  <library name="annotations-13.0">
+  <library name="robocode_library">
     <CLASSES>
       <root url="jar://$PROJECT_DIR$/robocode/libs/annotations-13.0.jar!/" />
       <root url="jar://$PROJECT_DIR$/robocode/libs/bcel-6.2.jar!/" />
@@ -16,7 +16,9 @@
       <root url="jar://$PROJECT_DIR$/robocode/libs/robocode.ui.editor-1.9.4.3.jar!/" />
       <root url="jar://$PROJECT_DIR$/robocode/libs/roborumble.jar!/" />
     </CLASSES>
-    <JAVADOC />
+    <JAVADOC>
+      <root url="file://$PROJECT_DIR$/robocode/javadoc" />
+    </JAVADOC>
     <SOURCES />
   </library>
 </component>
