@@ -11,4 +11,9 @@ public class RobotAction {
     public static final int actionsCount = 6;
     public static final double moveDistance = 100.0;
     public static final double moveDegree =  20.0;
+
+//    public enum Action{
+//        moveForward, moveBack, headRight, headLeft, backRight, backLeft
+//    }
 }
+// should we use enum???\
