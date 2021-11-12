@@ -10,11 +10,14 @@ public class MyRobot extends AdvancedRobot {
     private LearningAgent learningAgent = new LearningAgent(lookupTable);
     private int isHitByBullet = 0;
     private int hasHitWall = 0;
+    private int reward = 0;
+    //the reward policy should be kill > bullet hit > hit robot > hit wall > bullet miss > got hit by bullet
 
     public void run() {
         System.out.println("See state counts");
 
         while (true) {
+            System.out.println("damn");
             int state = this.getCurrentState();
 //            int action = learningAgent
             this.resetState();
