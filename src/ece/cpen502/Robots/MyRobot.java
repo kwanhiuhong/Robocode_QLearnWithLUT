@@ -10,8 +10,6 @@ import java.util.Random;
 public class MyRobot extends AdvancedRobot {
     private static LookupTable lut;
     private LearningAgent agent;
-    private double enemyDistance;
-    private double enemyBearing;
     private int hasHitWall = 0;
     private int isHitByBullet = 0;
     private EnemyRobot enemyTank;
@@ -103,11 +101,9 @@ public class MyRobot extends AdvancedRobot {
     }
 
     private int getRobotState(){
-        // state is based on int: numDistance, numBearing, numEnergy, numHitWall, numHitByBullet
-        int curDistance = RobotState.calcDistanceState(enemyDistance);
-//        int curBearing = RobotState.calcBearingState(enemyBearing);
+        int curDistance = RobotState.calcDistanceState(enemyTank.distance);
         int enemyBearing = RobotState.getEnemyBearing(enemyTank.bearing);
-        int curEnergy = RobotState.calcEnergyState(robotEnergy);
+        int curEnergy = RobotState.calcEnergyState(getEnergy());
         int heading = RobotState.getDirection(getHeading());
         return RobotState.getState(curDistance, enemyBearing, heading, curEnergy, hasHitWall, isHitByBullet);
     }
@@ -138,6 +134,7 @@ public class MyRobot extends AdvancedRobot {
         super.onBulletMissed(event);
         // TODO: update reward -> check!
     }
+
     public double calculateReward(){
         // TODO
         // priorQ = q.outputFor(previousStateAction);
@@ -160,11 +157,6 @@ public class MyRobot extends AdvancedRobot {
         isHitByBullet = 1;
         turnLeft(90 - e.getBearing());
         // TODO: update reward
-//        double power = event.getBullet().getPower();
-//        double rewardOffset = -(4 * power + 2 * (power - 1));
-//        System.out.println("We got shot by a bullet! Reward is changed by: " + rewardOffset);
-////        reward += rewardOffset;
-//        this.isHitByBullet = 1;
     }
 
     /**
@@ -182,29 +174,6 @@ public class MyRobot extends AdvancedRobot {
         enemyTank.xCoord = getX() + Math.sin(absoluteBearing) * e.getDistance();
         enemyTank.yCoord = getY() + Math.cos(absoluteBearing) * e.getDistance();
 //        fire(3);
-    }
-
-//    public void onScannedRobot (ScannedRobotEvent e){
-//        enemyDistance = e.getDistance();
-//        enemyBearing = e.getBearing();
-//        robotEnergy = e.getEnergy();
-//        fire(1);
-//    }
-
-    private void resetHitWall(){
-        hasHitWall = 0;
-    }
-
-    private void resetHitByBullet(){
-        isHitByBullet = 0;
-    }
-    //helper functions
-    private int getCurrentState() {
-        int distance = RobotState.getDistance(enemyTank.distance);
-        int enemyBearing = RobotState.getEnemyBearing(enemyTank.bearing);
-        int heading = RobotState.getDirection(getHeading());
-        int energy = RobotState.getEnergy(getEnergy());
-        return RobotState.getState(distance, enemyBearing, heading, energy, hasHitWall, isHitByBullet);
     }
 
     private void resetState() {

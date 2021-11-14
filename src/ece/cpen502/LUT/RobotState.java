@@ -25,13 +25,13 @@ public class RobotState {
                                 stateMap[a][b][c][d][e][f] = statesCount++;
     }
 
-    public static int getDistance(double val) {
-        int distance = (int) (val / (1000 / numEnemyDistance));
-        return distance >= numEnemyDistance ? distance - 1 : distance;
-    }
+//    public static int getDistance(double val) {
+//        int distance = (int) (val / (1000 / numEnemyDistance));
+//        return distance >= numEnemyDistance ? distance - 1 : distance;
+//    }
 
     public static int calcDistanceState(double eventDistance){
-        int distanceRanges = maximumDistanceInGame/numEnemyDistance;
+        int distanceRanges = maximumDistanceInGame/numEnemyDistance; //  1000 / numEnemyDistance
         int currentDistance = (int) eventDistance/distanceRanges;
         return (currentDistance < numEnemyDistance)? currentDistance: numEnemyDistance-1;
     }
@@ -43,14 +43,9 @@ public class RobotState {
         return (currentEnergy < numEnergy)? currentEnergy: numEnergy-1;
     }
 
-    public static int calcBearingState(double eventBearing){
-        // a scan returns a bearing relative to your heading: North = 0
-        // TODO
-        eventBearing = (eventBearing < 0)? (eventBearing+Math.PI*2):eventBearing;
-        double bearingRange = Math.PI*2 / numEnemyBearing;
-
-        return 0;
-    }
+//    public static int getEnergy(double val) {
+//        return val >= 100 ? numEnergy - 1 : (int) (val / (100 / numEnergy));
+//    }
 
     //note that if the heading is 340, it's actually the same as 20 (pointing to almost the same direction)
     public static int getEnemyBearing(double val) {
@@ -67,9 +62,6 @@ public class RobotState {
         return (int) (newHeading > 360 ? ((newHeading - 360) / angleRangePerArea) : (newHeading / angleRangePerArea));
     }
 
-    public static int getEnergy(double val) {
-        return val >= 100 ? numEnergy - 1 : (int) (val / (100 / numEnergy));
-    }
 
     public static int getState(int distance, int enemyDirection, int direction, int energy, int hitWall, int hitByBullet){
         return stateMap[distance][enemyDirection][direction][energy][hitWall][hitByBullet];
