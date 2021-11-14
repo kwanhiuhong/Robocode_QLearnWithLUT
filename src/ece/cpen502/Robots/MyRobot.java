@@ -2,6 +2,7 @@ package ece.cpen502.Robots;
 
 import ece.cpen502.LUT.*;
 import javafx.util.Pair;
+import ece.cpen502.LUT.*;
 import robocode.*;
 
 import java.util.Random;
@@ -11,8 +12,8 @@ public class MyRobot extends AdvancedRobot {
     private LearningAgent agent;
     private double enemyDistance;
     private double enemyBearing;
-    private int hitWall = 0;
-    private int hitByBullet = 0;
+    private int hasHitWall = 0;
+    private int isHitByBullet = 0;
     private EnemyRobot enemyTank;
     private double robotEnergy;
     private double reward = 0.0;
@@ -20,7 +21,7 @@ public class MyRobot extends AdvancedRobot {
     // TODO
     private double bulletPower;
 //    private static int numOfState = RobotState.stateCount
-
+//the reward policy should be kill > bullet hit > hit robot > hit wall > bullet miss > got hit by bullet
     public void run() {
 
         // -------------------------------- Initialize robot tank parts ------------------------------------------------
@@ -30,19 +31,23 @@ public class MyRobot extends AdvancedRobot {
         RobotState.initialEnergy = this.getEnergy();
         robotEnergy = RobotState.initialEnergy;
         // -------------------------------- Initialize reinforcement learning parts ------------------------------------
-        lut = new LookupTable(RobotState.stateCount, RobotAction.actionsCount);
+        lut = new LookupTable();
         // Load data into the table
         try{
             lut.load("lutRobotData.dat");
         }catch(Exception e){
             System.out.println(e);
         }
-        agent = new LearningAgent();
+        agent = new LearningAgent(lut);
+        //this.resetState();
         // ------------------------------------------------ Run --------------------------------------------------------
+        System.out.println("See state counts");
+
         while (true) {
             // Replace the next 4 lines with any behavior you would like
             ahead(100);
             turnGunRight(360);
+            this.resetState();
             setBulletPower();
             selectRobotAction();
             // TODO check place of learning
@@ -66,8 +71,7 @@ public class MyRobot extends AdvancedRobot {
     private void selectRobotAction(){
         int state = getRobotState();
         int action = agent.selectAction(state);
-        resetHitWall();
-        resetHitByBullet();
+        this.resetState();
         // learning here
         // TODO: check the place of learning
 //        agent.learn(new Pair<>(state, action), reward);
@@ -101,13 +105,11 @@ public class MyRobot extends AdvancedRobot {
     private int getRobotState(){
         // state is based on int: numDistance, numBearing, numEnergy, numHitWall, numHitByBullet
         int curDistance = RobotState.calcDistanceState(enemyDistance);
-        int curBearing = RobotState.calcBearingState(enemyBearing);
+//        int curBearing = RobotState.calcBearingState(enemyBearing);
+        int enemyBearing = RobotState.getEnemyBearing(enemyTank.bearing);
         int curEnergy = RobotState.calcEnergyState(robotEnergy);
-        int curHitWal = hitWall;
-        int curHitByBullet = hitByBullet;
-
-        // hitWall = 0;
-        return RobotState.stateMap[curDistance][curBearing][curEnergy][curHitWal][curHitByBullet];
+        int heading = RobotState.getDirection(getHeading());
+        return RobotState.getState(curDistance, enemyBearing, heading, curEnergy, hasHitWall, isHitByBullet);
     }
 
 
@@ -115,8 +117,10 @@ public class MyRobot extends AdvancedRobot {
     public void onHitWall(HitWallEvent event) {
         super.onHitWall(event);
         robotEnergy = getEnergy();
-        hitWall = 1;
+        double rewardOffset = -10.0;
+        hasHitWall = 1;
         // update reward
+        System.out.println("We just hit the wall! reward is changed by " + rewardOffset);
         reward -= rewardChangeDefault;
     }
 
@@ -153,9 +157,14 @@ public class MyRobot extends AdvancedRobot {
     public void onHitByBullet (HitByBulletEvent e){
         // update robot energy
         robotEnergy = getEnergy();
-        hitByBullet = 1;
+        isHitByBullet = 1;
         turnLeft(90 - e.getBearing());
         // TODO: update reward
+//        double power = event.getBullet().getPower();
+//        double rewardOffset = -(4 * power + 2 * (power - 1));
+//        System.out.println("We got shot by a bullet! Reward is changed by: " + rewardOffset);
+////        reward += rewardOffset;
+//        this.isHitByBullet = 1;
     }
 
     /**
@@ -163,17 +172,43 @@ public class MyRobot extends AdvancedRobot {
      */
 
     public void onScannedRobot (ScannedRobotEvent e){
-        enemyDistance = e.getDistance();
-        enemyBearing = e.getBearing();
-        robotEnergy = e.getEnergy();
-        fire(1);
+        System.out.println("scanned once");
+        double absoluteBearing = (getHeading() + e.getBearing()) % (360) * Math.PI/180;
+        enemyTank.bearing = e.getBearingRadians();
+        enemyTank.heading = e.getHeadingRadians();
+        enemyTank.velocity = e.getVelocity();
+        enemyTank.distance = e.getDistance();
+        enemyTank.energy = e.getEnergy();
+        enemyTank.xCoord = getX() + Math.sin(absoluteBearing) * e.getDistance();
+        enemyTank.yCoord = getY() + Math.cos(absoluteBearing) * e.getDistance();
+//        fire(3);
     }
 
+//    public void onScannedRobot (ScannedRobotEvent e){
+//        enemyDistance = e.getDistance();
+//        enemyBearing = e.getBearing();
+//        robotEnergy = e.getEnergy();
+//        fire(1);
+//    }
+
     private void resetHitWall(){
-        hitWall = 0;
+        hasHitWall = 0;
     }
 
     private void resetHitByBullet(){
-        hitByBullet = 0;
+        isHitByBullet = 0;
+    }
+    //helper functions
+    private int getCurrentState() {
+        int distance = RobotState.getDistance(enemyTank.distance);
+        int enemyBearing = RobotState.getEnemyBearing(enemyTank.bearing);
+        int heading = RobotState.getDirection(getHeading());
+        int energy = RobotState.getEnergy(getEnergy());
+        return RobotState.getState(distance, enemyBearing, heading, energy, hasHitWall, isHitByBullet);
+    }
+
+    private void resetState() {
+        this.hasHitWall = 0;
+        this.isHitByBullet = 0;
     }
 }
