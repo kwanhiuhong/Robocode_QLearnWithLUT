@@ -25,11 +25,6 @@ public class RobotState {
                                 stateMap[a][b][c][d][e][f] = statesCount++;
     }
 
-//    public static int getDistance(double val) {
-//        int distance = (int) (val / (1000 / numEnemyDistance));
-//        return distance >= numEnemyDistance ? distance - 1 : distance;
-//    }
-
     public static int calcDistanceState(double eventDistance){
         int distanceRanges = maximumDistanceInGame/numEnemyDistance; //  1000 / numEnemyDistance
         int currentDistance = (int) eventDistance/distanceRanges;
@@ -42,10 +37,6 @@ public class RobotState {
         int currentEnergy = (int) (robotEnergyFromEvent/energyLevelRange);
         return (currentEnergy < numEnergy)? currentEnergy: numEnergy-1;
     }
-
-//    public static int getEnergy(double val) {
-//        return val >= 100 ? numEnergy - 1 : (int) (val / (100 / numEnergy));
-//    }
 
     //note that if the heading is 340, it's actually the same as 20 (pointing to almost the same direction)
     public static int getEnemyBearing(double val) {

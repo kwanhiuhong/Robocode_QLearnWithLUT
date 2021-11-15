@@ -1,23 +1,19 @@
 package ece.cpen502.Robots;
 import ece.cpen502.LUT.*;
-import javafx.util.Pair;
 import robocode.*;
 
 import java.awt.*;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
-import java.util.Random;
 
 public class MyRobot extends AdvancedRobot {
     private static LookupTable lut;
-    //    public enum tankMode {scan, actions};
-    //    private tankMode operationalMode = tankMode.scan;
     // --------- game rounds record
     private static int totalNumRounds = 0;
-    private static int numRoundsTo100 = 0;
-    private static int numWins = 0;
-    private double epsilon = 0.7;
+    private static double numRoundsTo100 = 0;
+    private static double numWins = 0;
+    private double epsilon = 0.5;
     // --------- state record
     private int currentAction;
     private int currentState;
@@ -28,19 +24,19 @@ public class MyRobot extends AdvancedRobot {
     // ---------- program components
     private LearningAgent agent;
     private EnemyRobot enemyTank;
-    private double robotEnergy;
 
     // -------- reward
     //the reward policy should be killed > bullet hit > hit robot > hit wall > bullet miss > got hit by bullet
     private double currentReward = 0.0;
-    private final double goodReward = 1.0;
-    private final double badReward = -0.25;
+    private final double goodReward = 5.0;
+    private final double badReward = -2.0;
+    private final double winReward = 10;
+    private final double loseReward = -10;
     // TODO
-    private double bulletPower;
-    private boolean foundEnemy;
     private int centerX;
     private int centerY;
 
+    private double fireMagnitude;
     //
     Writer log;
     public void run() {
@@ -54,7 +50,6 @@ public class MyRobot extends AdvancedRobot {
         setAdjustRadarForGunTurn(true); // we need to adjust radar based on the distance and direction of the enemy tank
         enemyTank = new EnemyRobot();
         RobotState.initialEnergy = this.getEnergy();
-        robotEnergy = RobotState.initialEnergy;
         // -------------------------------- Initialize reinforcement learning parts ------------------------------------
         lut = new LookupTable();
         agent = new LearningAgent(lut);
@@ -63,24 +58,11 @@ public class MyRobot extends AdvancedRobot {
         // ------------------------------------------------ Run --------------------------------------------------------
 
         while (true) {
-            if(totalNumRounds > 4000) {epsilon = 0.0;}
-            setBulletPower();
+            if (totalNumRounds > 10000) epsilon = 0;
             selectRobotAction();
-            // update previous Q
             agent.train(currentState, currentAction, currentReward, currentAlgo);
-            execute();
-        }
-    }
-    /**
-     * we should decrease energy in case we are close to the enemy
-     * and use maximum energy other time
-     */
-    private void setBulletPower(){
-        int ratioDistance = (int)(1000/enemyTank.distance);
-        if(ratioDistance>3){
-            bulletPower = 3;
-        }else{
-            bulletPower = ratioDistance;
+            this.currentReward = 0;
+            adjustAndFire();
         }
     }
 
@@ -120,32 +102,50 @@ public class MyRobot extends AdvancedRobot {
                 setTurnLeft(90.0);
                 execute();
                 break;
-            case RobotAction.tryFire:
-                targetEnemyAndFire();
-                execute();
-                break;
-            case RobotAction.goToCenter:
-                goToCenter(centerX, centerY, getX(), getY(), getHeadingRadians());
-                execute();
-                break;
         }
     }
 
-    public void targetEnemyAndFire(){
-        foundEnemy = false;
-        while(!foundEnemy){
-            turnRadarLeft(90);
-            turnLeft(getRadarHeading());
-            execute();
-        }
-        turnGunRight(getHeading() - getGunHeading()  + enemyTank.bearing);
-        setBulletPower();
-        fire(bulletPower);
+    private void adjustAndFire() {
+        fireMagnitude = 800 / enemyTank.distance;
+        fireMagnitude = fireMagnitude > 3 ? 3 : fireMagnitude;
+        setTurnRadarRightRadians(Double.POSITIVE_INFINITY);
+        adjustGunAngle();
+        if (getGunHeat() == 0) setFire(fireMagnitude);
+        execute();
     }
 
-    /*
-    get and set current state
-     */
+    private void adjustGunAngle() {
+        long bulletArrivalTime, bulletTransmissionTime;
+        double coordinate[] = {enemyTank.xCoord, enemyTank.yCoord};
+        for (int i = 0; i < 19; i++) {
+            double distance = euclideanDistance(getX(), getY(), coordinate[0], coordinate[1]);
+            bulletTransmissionTime = (int) Math.round((distance / (20 - (fireMagnitude * 3))));
+            bulletArrivalTime = bulletTransmissionTime + getTime() - 9;
+            coordinate = calculatePosition(bulletArrivalTime);
+        }
+        double gunOffset = getGunHeadingRadians() - (Math.PI / 2 - Math.atan2(coordinate[1] - getY(), coordinate[0] - getX()));
+        setTurnGunLeftRadians(normalize(gunOffset));
+    }
+
+    private double normalize(double angle) {
+        if (angle > Math.PI) angle -= 2*Math.PI;
+        if (angle < -Math.PI) angle += 2*Math.PI;
+        return angle;
+    }
+
+    private double[] calculatePosition(long bulletArrivalTime) {
+        double difference = bulletArrivalTime - enemyTank.time;
+        double coordinate[] = new double[2];
+        coordinate[0] = enemyTank.xCoord + difference * enemyTank.velocity * Math.sin(enemyTank.heading);
+        coordinate[1] = enemyTank.yCoord + difference * enemyTank.velocity * Math.cos(enemyTank.heading);
+        return coordinate;
+    }
+
+    private double euclideanDistance(double x1, double y1, double x2, double y2) {
+        double xDiff = x2 - x1, yDiff = y2 - y1;
+        return Math.sqrt(Math.pow(xDiff, 2) + Math.pow(yDiff, 2));
+    }
+
     private int getRobotState(){
         int curDistance = RobotState.calcDistanceState(enemyTank.distance);
         int enemyBearing = RobotState.getEnemyBearing(enemyTank.bearing);
@@ -155,73 +155,40 @@ public class MyRobot extends AdvancedRobot {
         return currentState;
     }
 
-
-    @Override
-    public void onHitWall(HitWallEvent event) {
-        super.onHitWall(event);
-        robotEnergy = getEnergy();
-        hasHitWall = 1;
-        // update reward
-        currentReward = badReward;
-        goToCenter(centerX, centerY, getX(), getY(), getHeadingRadians());
-    }
-
-    private void goToCenter(double x, double y, double myX, double myY, double myHeading){
-        double degToCenter = getBearingToCenter(centerX, centerY, getX(), getY(), getHeadingRadians());
-        setTurnRightRadians(degToCenter);
-        setAhead(100);
-        execute();
-    }
-
-    public double getBearingToCenter(double x, double y, double myX, double myY, double myHeading){
-        double deg = Math.PI/2 - Math.atan2(y - myY, x-myX);
-        return normAngle(deg - myHeading);
-    }
-
-    public double normAngle(double ang){
-        if(ang <= -Math.PI){
-            ang += 2*Math.PI;
-        }
-        if(ang > Math.PI){
-            ang -= 2*Math.PI;
-        }
-        return ang;
+    private void resetState() {
+        this.hasHitWall = 0;
+        this.isHitByBullet = 0;
     }
 
     @Override
     public void onBulletHit(BulletHitEvent event) {
-        super.onBulletHit(event);
-        fire(bulletPower);
-        robotEnergy = event.getEnergy();
-        currentReward = goodReward;
+        currentReward += goodReward;
     }
 
     @Override
     public void onBulletMissed(BulletMissedEvent event) {
-        super.onBulletMissed(event);
-        turnGunRight(180 - getGunHeading());
+        currentReward += badReward;
     }
 
-    /**
-     * onHitByBullet: What to do when you're hit by a bullet
-     */
-    public void onHitByBullet (HitByBulletEvent e){
-        // update robot energy
-        robotEnergy = getEnergy();
+    @Override
+    public void onHitByBullet(HitByBulletEvent e){
         isHitByBullet = 1;
-        turnRadarRight(e.getBearing());
-        turnGunRight(e.getBearing());
-        fire(bulletPower);
-        execute();
-        currentReward = badReward;
+        currentReward -= e.getBullet().getPower();
     }
 
-    /**
-     * onScannedRobot: What to do when you see another robot
-     */
+    @Override
+    public void onHitRobot(HitRobotEvent e) {
+        currentReward += badReward;
+    }
 
+    @Override
+    public void onHitWall(HitWallEvent event) {
+        hasHitWall = 1;
+        currentReward += badReward;
+    }
+
+    @Override
     public void onScannedRobot (ScannedRobotEvent e){
-        foundEnemy = true;
         double absoluteBearing = (getHeading() + e.getBearing()) % (360) * Math.PI/180;
         enemyTank.bearing = e.getBearingRadians();
         enemyTank.heading = e.getHeadingRadians();
@@ -230,55 +197,42 @@ public class MyRobot extends AdvancedRobot {
         enemyTank.energy = e.getEnergy();
         enemyTank.xCoord = getX() + Math.sin(absoluteBearing) * e.getDistance();
         enemyTank.yCoord = getY() + Math.cos(absoluteBearing) * e.getDistance();
-    }
-
-    /*
-    reset hitWall and hitByBullet states
-     */
-    private void resetState() {
-        this.hasHitWall = 0;
-        this.isHitByBullet = 0;
+        enemyTank.time = getTime();
     }
 
     @Override
     public void onWin(WinEvent event) {
-        super.onWin(event);
-        currentReward = goodReward*2;
+        currentReward += winReward;
+
         // TODO: record game
-        if(numRoundsTo100<100){
-            System.out.println("win");
-            totalNumRounds++;
+        if (numRoundsTo100 < 200) {
+            System.out.println("win: " + numWins);
             numRoundsTo100++;
             numWins++;
-        }else{
-            LookupTable hey = agent.lookupTable;
-            System.out.println(" !!!!!!!!! " +"win percentage"+ " " + numWins/numRoundsTo100);
+        } else {
+            System.out.println("\n\n !!!!!!!!! " +"win percentage"+ " " + ((numWins/numRoundsTo100) * 100) + "\n\n");
             numRoundsTo100 = 0;
             numWins = 0;
         }
-
-        //
+        totalNumRounds++;
         agent.train(currentState, currentAction, currentReward, currentAlgo);
     }
 
     @Override
-    // look up the previous srare and do back step q.train
     public void onDeath(DeathEvent event) {
-        super.onDeath(event);
-        currentReward = badReward*2;
+        currentReward += loseReward;
+
         // TODO: record game
-        if(numRoundsTo100 < 100){
-            System.out.println("lose");
-            totalNumRounds++;
+        if(numRoundsTo100 < 200){
             numRoundsTo100++;
+            System.out.println("lose: " + (numRoundsTo100 - numWins));
         }else{
-            LookupTable hey = agent.lookupTable;
-            System.out.println(" !!!!!!!!! " +"win percentage"+ " " + numWins/numRoundsTo100);
+            System.out.println("\n\n !!!!!!!!! " +"win percentage"+ " " + ((numWins/numRoundsTo100) * 100) + "\n\n");
             numRoundsTo100 = 0;
             numWins = 0;
         }
 
-        //
+        totalNumRounds++;
         agent.train(currentState, currentAction, currentReward, currentAlgo);
     }
 }
