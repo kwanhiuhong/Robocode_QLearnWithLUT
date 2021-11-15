@@ -6,7 +6,8 @@ public class RobotAction {
     public static final int backRight = 4, backLeft = 5;
     // add one advance action
     public static final int tryFire = 6;
+    public static final int goToCenter = 7;
 
-    public static final int actionsCount = 7;
-    public static final double moveDistance = 80.0, moveDegree = 20.0;
+    public static final int actionsCount = 8;
+    public static final double moveDistance = 100.0, moveDegree = 20.0;
 }

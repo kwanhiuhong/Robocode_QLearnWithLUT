@@ -4,6 +4,9 @@ import javafx.util.Pair;
 import robocode.*;
 
 import java.awt.*;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.util.Random;
 
 public class MyRobot extends AdvancedRobot {
@@ -35,7 +38,11 @@ public class MyRobot extends AdvancedRobot {
     // TODO
     private double bulletPower;
     private boolean foundEnemy;
+    private int centerX;
+    private int centerY;
 
+    //
+    Writer log;
     public void run() {
 
         // -------------------------------- Initialize robot tank parts ------------------------------------------------
@@ -51,19 +58,17 @@ public class MyRobot extends AdvancedRobot {
         // -------------------------------- Initialize reinforcement learning parts ------------------------------------
         lut = new LookupTable();
         agent = new LearningAgent(lut);
+        centerX = (int) getBattleFieldWidth()/2;
+        centerY = (int) getBattleFieldHeight()/2;
         // ------------------------------------------------ Run --------------------------------------------------------
 
         while (true) {
-            System.out.println("See state counts");
             if(totalNumRounds > 4000) {epsilon = 0.0;}
-            turnRadarLeft(90);
             setBulletPower();
             selectRobotAction();
             // update previous Q
-            try{agent.train(currentState, currentAction, currentReward, currentAlgo);}catch(Exception e){
-                System.out.println("here");
-            }
-
+            agent.train(currentState, currentAction, currentReward, currentAlgo);
+            execute();
         }
     }
     /**
@@ -88,35 +93,39 @@ public class MyRobot extends AdvancedRobot {
         this.resetState(); // reset hitWall hitByBullet
         switch(currentAction){
             case RobotAction.moveForward:
-                ahead(RobotAction.moveDistance);
+                setAhead(RobotAction.moveDistance);
                 execute();
                 break;
             case RobotAction.moveBack:
-                back(RobotAction.moveDistance);
+                setBack(RobotAction.moveDistance);
                 execute();
                 break;
             case RobotAction.headRight:
-                ahead(RobotAction.moveDistance);
-                turnRight(90.0);
+                setAhead(RobotAction.moveDistance);
+                setTurnRight(90.0);
                 execute();
                 break;
             case RobotAction.headLeft:
-                ahead(RobotAction.moveDistance);
-                turnLeft(90.0);
+                setAhead(RobotAction.moveDistance);
+                setTurnLeft(90.0);
                 execute();
                 break;
             case RobotAction.backRight:
-                back(RobotAction.moveDistance);
-                turnRight(90.0);
+                setBack(RobotAction.moveDistance);
+                setTurnRight(90.0);
                 execute();
                 break;
             case RobotAction.backLeft:
-                back(RobotAction.moveDistance);
-                turnLeft(90.0);
+                setBack(RobotAction.moveDistance);
+                setTurnLeft(90.0);
                 execute();
                 break;
             case RobotAction.tryFire:
                 targetEnemyAndFire();
+                execute();
+                break;
+            case RobotAction.goToCenter:
+                goToCenter(centerX, centerY, getX(), getY(), getHeadingRadians());
                 execute();
                 break;
         }
@@ -126,9 +135,10 @@ public class MyRobot extends AdvancedRobot {
         foundEnemy = false;
         while(!foundEnemy){
             turnRadarLeft(90);
+            turnLeft(getRadarHeading());
             execute();
         }
-        turnGunLeft(getGunHeading() - getHeading() - enemyTank.bearing);
+        turnGunRight(getHeading() - getGunHeading()  + enemyTank.bearing);
         setBulletPower();
         fire(bulletPower);
     }
@@ -141,9 +151,7 @@ public class MyRobot extends AdvancedRobot {
         int enemyBearing = RobotState.getEnemyBearing(enemyTank.bearing);
         int curEnergy = RobotState.calcEnergyState(getEnergy());
         int heading = RobotState.getDirection(getHeading());
-        try{currentState = RobotState.getState(curDistance, enemyBearing, heading, curEnergy, hasHitWall, isHitByBullet);}catch(Exception e){
-            System.out.println("here");
-        }
+        currentState = RobotState.getState(curDistance, enemyBearing, heading, curEnergy, hasHitWall, isHitByBullet);
         return currentState;
     }
 
@@ -155,15 +163,43 @@ public class MyRobot extends AdvancedRobot {
         hasHitWall = 1;
         // update reward
         currentReward = badReward;
-        turnLeft(180);
-        ahead(100);
+        goToCenter(centerX, centerY, getX(), getY(), getHeadingRadians());
+    }
+
+    private void goToCenter(double x, double y, double myX, double myY, double myHeading){
+        double degToCenter = getBearingToCenter(centerX, centerY, getX(), getY(), getHeadingRadians());
+        setTurnRightRadians(degToCenter);
+        setAhead(100);
+        execute();
+    }
+
+    public double getBearingToCenter(double x, double y, double myX, double myY, double myHeading){
+        double deg = Math.PI/2 - Math.atan2(y - myY, x-myX);
+        return normAngle(deg - myHeading);
+    }
+
+    public double normAngle(double ang){
+        if(ang <= -Math.PI){
+            ang += 2*Math.PI;
+        }
+        if(ang > Math.PI){
+            ang -= 2*Math.PI;
+        }
+        return ang;
     }
 
     @Override
     public void onBulletHit(BulletHitEvent event) {
         super.onBulletHit(event);
+        fire(bulletPower);
         robotEnergy = event.getEnergy();
         currentReward = goodReward;
+    }
+
+    @Override
+    public void onBulletMissed(BulletMissedEvent event) {
+        super.onBulletMissed(event);
+        turnGunRight(180 - getGunHeading());
     }
 
     /**
@@ -173,7 +209,10 @@ public class MyRobot extends AdvancedRobot {
         // update robot energy
         robotEnergy = getEnergy();
         isHitByBullet = 1;
-        turnLeft(90 - e.getBearing());
+        turnRadarRight(e.getBearing());
+        turnGunRight(e.getBearing());
+        fire(bulletPower);
+        execute();
         currentReward = badReward;
     }
 
@@ -182,7 +221,6 @@ public class MyRobot extends AdvancedRobot {
      */
 
     public void onScannedRobot (ScannedRobotEvent e){
-        System.out.println("scanned once");
         foundEnemy = true;
         double absoluteBearing = (getHeading() + e.getBearing()) % (360) * Math.PI/180;
         enemyTank.bearing = e.getBearingRadians();
@@ -207,13 +245,20 @@ public class MyRobot extends AdvancedRobot {
         super.onWin(event);
         currentReward = goodReward*2;
         // TODO: record game
-        totalNumRounds++;
-        numRoundsTo100++;
-        numWins++;
-        //
-        try{agent.train(currentAction, currentState, currentReward, currentAlgo);}catch(Exception e){
-            System.out.println("here");
+        if(numRoundsTo100<100){
+            System.out.println("win");
+            totalNumRounds++;
+            numRoundsTo100++;
+            numWins++;
+        }else{
+            LookupTable hey = agent.lookupTable;
+            System.out.println(" !!!!!!!!! " +"win percentage"+ " " + numWins/numRoundsTo100);
+            numRoundsTo100 = 0;
+            numWins = 0;
         }
+
+        //
+        agent.train(currentState, currentAction, currentReward, currentAlgo);
     }
 
     @Override
@@ -222,11 +267,18 @@ public class MyRobot extends AdvancedRobot {
         super.onDeath(event);
         currentReward = badReward*2;
         // TODO: record game
-        totalNumRounds++;
-        numRoundsTo100++;
-        //
-        try{agent.train(currentAction, currentState, currentReward, currentAlgo);}catch(Exception e){
-            System.out.println("here");
+        if(numRoundsTo100 < 100){
+            System.out.println("lose");
+            totalNumRounds++;
+            numRoundsTo100++;
+        }else{
+            LookupTable hey = agent.lookupTable;
+            System.out.println(" !!!!!!!!! " +"win percentage"+ " " + numWins/numRoundsTo100);
+            numRoundsTo100 = 0;
+            numWins = 0;
         }
+
+        //
+        agent.train(currentState, currentAction, currentReward, currentAlgo);
     }
 }

@@ -11,7 +11,7 @@ public class LearningAgent implements CommonInterface {
 
     private double learningRate = 0.2;
     private double discountFactor = 0.9;
-    private LookupTable lookupTable;
+    public LookupTable lookupTable;
     private int prevState = -1, prevAction = -1;
 
     public LearningAgent(LookupTable table) {
@@ -23,22 +23,13 @@ public class LearningAgent implements CommonInterface {
 
     public void train(int curState, int curAction, double reward, Algo algo) {
         if (prevState != -1 || prevAction != -1) {
-            double Q =0.0;
-            try{  Q = this.lookupTable.get(prevState, prevAction);}catch(Exception e){
-                System.out.println("here");
-            }
-
+            double Q = this.lookupTable.get(prevState, prevAction);
             switch (algo) {
                 case QLearn:
-                    try{ Q += this.learningRate * (reward + this.discountFactor * this.lookupTable.getMax(curState) - Q);}catch(Exception e){
-                        System.out.println("here");
-                    }
-
+                    Q += this.learningRate * (reward + this.discountFactor * this.lookupTable.getMax(curState) - Q);
                     break;
                 case Sarsa:
-                    try{ Q += this.learningRate * (reward + this.discountFactor * this.lookupTable.get(curState, curAction) - Q);}catch(Exception e){
-                        System.out.println("here");
-                    }
+                    Q += this.learningRate * (reward + this.discountFactor * this.lookupTable.get(curState, curAction) - Q);
                     break;
             }
             this.lookupTable.set(prevState, prevAction, Q);
