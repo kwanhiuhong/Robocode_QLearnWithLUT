@@ -1,28 +1,48 @@
 package ece.cpen502.Robots;
-
 import ece.cpen502.LUT.*;
 import javafx.util.Pair;
-import ece.cpen502.LUT.*;
 import robocode.*;
 
+import java.awt.*;
 import java.util.Random;
 
 public class MyRobot extends AdvancedRobot {
     private static LookupTable lut;
-    private LearningAgent agent;
+    //    public enum tankMode {scan, actions};
+    //    private tankMode operationalMode = tankMode.scan;
+    // --------- game rounds record
+    private static int totalNumRounds = 0;
+    private static int numRoundsTo100 = 0;
+    private static int numWins = 0;
+    private double epsilon = 0.7;
+    // --------- state record
+    private int currentAction;
+    private int currentState;
+    private final LearningAgent.Algo currentAlgo = LearningAgent.Algo.QLearn;
+
     private int hasHitWall = 0;
     private int isHitByBullet = 0;
+    // ---------- program components
+    private LearningAgent agent;
     private EnemyRobot enemyTank;
     private double robotEnergy;
-    private double reward = 0.0;
-    private double rewardChangeDefault = 1.0;
+
+    // -------- reward
+    //the reward policy should be killed > bullet hit > hit robot > hit wall > bullet miss > got hit by bullet
+    private double currentReward = 0.0;
+    private final double goodReward = 1.0;
+    private final double badReward = -0.25;
     // TODO
     private double bulletPower;
-//    private static int numOfState = RobotState.stateCount
-//the reward policy should be kill > bullet hit > hit robot > hit wall > bullet miss > got hit by bullet
+    private boolean foundEnemy;
+
     public void run() {
 
         // -------------------------------- Initialize robot tank parts ------------------------------------------------
+        setBulletColor(Color.red);
+        setGunColor(Color.green);
+        setBodyColor(Color.yellow);
+        setRadarColor(Color.blue);
         setAdjustGunForRobotTurn(true);
         setAdjustRadarForGunTurn(true); // we need to adjust radar based on the distance and direction of the enemy tank
         enemyTank = new EnemyRobot();
@@ -30,28 +50,20 @@ public class MyRobot extends AdvancedRobot {
         robotEnergy = RobotState.initialEnergy;
         // -------------------------------- Initialize reinforcement learning parts ------------------------------------
         lut = new LookupTable();
-        // Load data into the table
-        try{
-            lut.load("lutRobotData.dat");
-        }catch(Exception e){
-            System.out.println(e);
-        }
         agent = new LearningAgent(lut);
-        //this.resetState();
         // ------------------------------------------------ Run --------------------------------------------------------
-        System.out.println("See state counts");
 
         while (true) {
-            // Replace the next 4 lines with any behavior you would like
-            ahead(100);
-            turnGunRight(360);
-            this.resetState();
+            System.out.println("See state counts");
+            if(totalNumRounds > 4000) {epsilon = 0.0;}
+            turnRadarLeft(90);
             setBulletPower();
             selectRobotAction();
-            // TODO check place of learning
-            // we need to do some back steps here?? -> q learning kind of things q is a state action table
-            // agent.learn(new Pair<>(state, action), reward);
-            execute();
+            // update previous Q
+            try{agent.train(currentState, currentAction, currentReward, currentAlgo);}catch(Exception e){
+                System.out.println("here");
+            }
+
         }
     }
     /**
@@ -59,8 +71,12 @@ public class MyRobot extends AdvancedRobot {
      * and use maximum energy other time
      */
     private void setBulletPower(){
-        // TODO
-        bulletPower = 3.0;
+        int ratioDistance = (int)(1000/enemyTank.distance);
+        if(ratioDistance>3){
+            bulletPower = 3;
+        }else{
+            bulletPower = ratioDistance;
+        }
     }
 
     /**
@@ -68,44 +84,67 @@ public class MyRobot extends AdvancedRobot {
      */
     private void selectRobotAction(){
         int state = getRobotState();
-        int action = agent.selectAction(state);
-        this.resetState();
-        // learning here
-        // TODO: check the place of learning
-//        agent.learn(new Pair<>(state, action), reward);
-        switch(action){
+        currentAction = agent.getAction(state, epsilon);
+        this.resetState(); // reset hitWall hitByBullet
+        switch(currentAction){
             case RobotAction.moveForward:
                 ahead(RobotAction.moveDistance);
+                execute();
                 break;
             case RobotAction.moveBack:
                 back(RobotAction.moveDistance);
+                execute();
                 break;
             case RobotAction.headRight:
                 ahead(RobotAction.moveDistance);
                 turnRight(90.0);
+                execute();
                 break;
             case RobotAction.headLeft:
                 ahead(RobotAction.moveDistance);
                 turnLeft(90.0);
+                execute();
                 break;
             case RobotAction.backRight:
                 back(RobotAction.moveDistance);
                 turnRight(90.0);
+                execute();
                 break;
             case RobotAction.backLeft:
                 back(RobotAction.moveDistance);
                 turnLeft(90.0);
+                execute();
+                break;
+            case RobotAction.tryFire:
+                targetEnemyAndFire();
+                execute();
                 break;
         }
-
     }
 
+    public void targetEnemyAndFire(){
+        foundEnemy = false;
+        while(!foundEnemy){
+            turnRadarLeft(90);
+            execute();
+        }
+        turnGunLeft(getGunHeading() - getHeading() - enemyTank.bearing);
+        setBulletPower();
+        fire(bulletPower);
+    }
+
+    /*
+    get and set current state
+     */
     private int getRobotState(){
         int curDistance = RobotState.calcDistanceState(enemyTank.distance);
         int enemyBearing = RobotState.getEnemyBearing(enemyTank.bearing);
         int curEnergy = RobotState.calcEnergyState(getEnergy());
         int heading = RobotState.getDirection(getHeading());
-        return RobotState.getState(curDistance, enemyBearing, heading, curEnergy, hasHitWall, isHitByBullet);
+        try{currentState = RobotState.getState(curDistance, enemyBearing, heading, curEnergy, hasHitWall, isHitByBullet);}catch(Exception e){
+            System.out.println("here");
+        }
+        return currentState;
     }
 
 
@@ -113,41 +152,20 @@ public class MyRobot extends AdvancedRobot {
     public void onHitWall(HitWallEvent event) {
         super.onHitWall(event);
         robotEnergy = getEnergy();
-        double rewardOffset = -10.0;
         hasHitWall = 1;
         // update reward
-        System.out.println("We just hit the wall! reward is changed by " + rewardOffset);
-        reward -= rewardChangeDefault;
+        currentReward = badReward;
+        turnLeft(180);
+        ahead(100);
     }
 
     @Override
     public void onBulletHit(BulletHitEvent event) {
         super.onBulletHit(event);
         robotEnergy = event.getEnergy();
-
-        // TODO: update reward -> check!
-
+        currentReward = goodReward;
     }
 
-    @Override
-    public void onBulletMissed(BulletMissedEvent event) {
-        super.onBulletMissed(event);
-        // TODO: update reward -> check!
-    }
-
-    public double calculateReward(){
-        // TODO
-        // priorQ = q.outputFor(previousStateAction);
-        // currentQmax = q.outputFor(currentMaxStateAction);
-        // updateQ = priorQ + alpha*(r+gamma*currentQmax - priorQ)
-        return 0.0;
-    }
-
-    // for exploration move
-    public int selectRandomAction(){
-        Random rand = new Random();
-        return rand.nextInt(6);
-    }
     /**
      * onHitByBullet: What to do when you're hit by a bullet
      */
@@ -156,7 +174,7 @@ public class MyRobot extends AdvancedRobot {
         robotEnergy = getEnergy();
         isHitByBullet = 1;
         turnLeft(90 - e.getBearing());
-        // TODO: update reward
+        currentReward = badReward;
     }
 
     /**
@@ -165,6 +183,7 @@ public class MyRobot extends AdvancedRobot {
 
     public void onScannedRobot (ScannedRobotEvent e){
         System.out.println("scanned once");
+        foundEnemy = true;
         double absoluteBearing = (getHeading() + e.getBearing()) % (360) * Math.PI/180;
         enemyTank.bearing = e.getBearingRadians();
         enemyTank.heading = e.getHeadingRadians();
@@ -173,11 +192,41 @@ public class MyRobot extends AdvancedRobot {
         enemyTank.energy = e.getEnergy();
         enemyTank.xCoord = getX() + Math.sin(absoluteBearing) * e.getDistance();
         enemyTank.yCoord = getY() + Math.cos(absoluteBearing) * e.getDistance();
-//        fire(3);
     }
 
+    /*
+    reset hitWall and hitByBullet states
+     */
     private void resetState() {
         this.hasHitWall = 0;
         this.isHitByBullet = 0;
+    }
+
+    @Override
+    public void onWin(WinEvent event) {
+        super.onWin(event);
+        currentReward = goodReward*2;
+        // TODO: record game
+        totalNumRounds++;
+        numRoundsTo100++;
+        numWins++;
+        //
+        try{agent.train(currentAction, currentState, currentReward, currentAlgo);}catch(Exception e){
+            System.out.println("here");
+        }
+    }
+
+    @Override
+    // look up the previous srare and do back step q.train
+    public void onDeath(DeathEvent event) {
+        super.onDeath(event);
+        currentReward = badReward*2;
+        // TODO: record game
+        totalNumRounds++;
+        numRoundsTo100++;
+        //
+        try{agent.train(currentAction, currentState, currentReward, currentAlgo);}catch(Exception e){
+            System.out.println("here");
+        }
     }
 }

@@ -23,13 +23,22 @@ public class LearningAgent implements CommonInterface {
 
     public void train(int curState, int curAction, double reward, Algo algo) {
         if (prevState != -1 || prevAction != -1) {
-            double Q = this.lookupTable.get(prevState, prevAction);
+            double Q =0.0;
+            try{  Q = this.lookupTable.get(prevState, prevAction);}catch(Exception e){
+                System.out.println("here");
+            }
+
             switch (algo) {
                 case QLearn:
-                    Q += this.learningRate * (reward + this.discountFactor * this.lookupTable.getMax(curState) - Q);
+                    try{ Q += this.learningRate * (reward + this.discountFactor * this.lookupTable.getMax(curState) - Q);}catch(Exception e){
+                        System.out.println("here");
+                    }
+
                     break;
                 case Sarsa:
-                    Q += this.learningRate * (reward + this.discountFactor * this.lookupTable.get(curState, curAction) - Q);
+                    try{ Q += this.learningRate * (reward + this.discountFactor * this.lookupTable.get(curState, curAction) - Q);}catch(Exception e){
+                        System.out.println("here");
+                    }
                     break;
             }
             this.lookupTable.set(prevState, prevAction, Q);
@@ -52,10 +61,6 @@ public class LearningAgent implements CommonInterface {
     @Override
     public void load(String argFileName) throws IOException {
 
-    }
-// used in Robots
-    public int selectAction(int curState){
-        return 0;
     }
 
     public void learn(Pair<Integer, Integer> stateActionPair, double reward){

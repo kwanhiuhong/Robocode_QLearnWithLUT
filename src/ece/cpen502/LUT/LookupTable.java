@@ -26,6 +26,7 @@ public class LookupTable implements LUTInterface {
 
     public double getMax(int state){
         double max = Double.NEGATIVE_INFINITY;
+
         for (double QValue: this.lookupTable[state])
             max = Math.max(QValue, max);
         return max;
