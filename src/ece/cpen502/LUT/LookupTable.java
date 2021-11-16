@@ -1,19 +1,20 @@
 package ece.cpen502.LUT;
 
 import ece.cpen502.Interface.LUTInterface;
-
-import java.io.File;
 import java.io.IOException;
+import java.util.Random;
 
 public class LookupTable implements LUTInterface {
     private int numStates = RobotState.statesCount;
     private int numActions = RobotAction.actionsCount;
     public double[][] lookupTable;
+    public  int robotID;
 
     //constructor
     public LookupTable(){
         this.lookupTable = new double[this.numStates][this.numActions];
         this.initialiseLUT();
+        robotID = new Random().nextInt();
     }
 
     public void set(int state, int action, double value){

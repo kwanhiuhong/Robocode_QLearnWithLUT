@@ -1,18 +1,18 @@
 package ece.cpen502.Robots;
 import ece.cpen502.LUT.*;
 import robocode.*;
-
 import java.awt.*;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.Writer;
+import java.io.*;
 
 public class MyRobot extends AdvancedRobot {
     private static LookupTable lut;
+    private final String fileToSaveName = "robotMiddleReward";
+    private final String fileTerminalReward = "robotTerminalReward";
     // --------- game rounds record
     private static int totalNumRounds = 0;
     private static double numRoundsTo100 = 0;
     private static double numWins = 0;
+    private static int roundCount = 1;
     private double epsilon = 0.5;
     // --------- state record
     private int currentAction;
@@ -28,17 +28,14 @@ public class MyRobot extends AdvancedRobot {
     // -------- reward
     //the reward policy should be killed > bullet hit > hit robot > hit wall > bullet miss > got hit by bullet
     private double currentReward = 0.0;
-    private final double goodReward = 5.0;
-    private final double badReward = -2.0;
+    private final double goodInstantReward = 5.0;
+    private final double badInstantReward = -2.0;
     private final double winReward = 10;
     private final double loseReward = -10;
-    // TODO
-    private int centerX;
-    private int centerY;
 
     private double fireMagnitude;
-    //
-    Writer log;
+
+
     public void run() {
 
         // -------------------------------- Initialize robot tank parts ------------------------------------------------
@@ -53,10 +50,7 @@ public class MyRobot extends AdvancedRobot {
         // -------------------------------- Initialize reinforcement learning parts ------------------------------------
         lut = new LookupTable();
         agent = new LearningAgent(lut);
-        centerX = (int) getBattleFieldWidth()/2;
-        centerY = (int) getBattleFieldHeight()/2;
         // ------------------------------------------------ Run --------------------------------------------------------
-
         while (true) {
             if (totalNumRounds > 10000) epsilon = 0;
             selectRobotAction();
@@ -162,29 +156,46 @@ public class MyRobot extends AdvancedRobot {
 
     @Override
     public void onBulletHit(BulletHitEvent event) {
-        currentReward += goodReward;
+        currentReward += goodInstantReward;
     }
 
     @Override
     public void onBulletMissed(BulletMissedEvent event) {
-        currentReward += badReward;
+        currentReward += badInstantReward;
     }
 
     @Override
     public void onHitByBullet(HitByBulletEvent e){
         isHitByBullet = 1;
         currentReward -= e.getBullet().getPower();
+
+        // run away from wall and run towards the enemy
+        double degToEnemy= getBearingToTarget(enemyTank.xCoord, enemyTank.yCoord, getX(), getY(), getHeadingRadians());
+        setTurnRightRadians(degToEnemy+2);
+        setAhead(100);
+        execute();
     }
 
     @Override
     public void onHitRobot(HitRobotEvent e) {
-        currentReward += badReward;
+        currentReward += badInstantReward;
     }
 
     @Override
     public void onHitWall(HitWallEvent event) {
         hasHitWall = 1;
-        currentReward += badReward;
+        currentReward += badInstantReward;
+        if(euclideanDistance(getX(), getY(),enemyTank.xCoord, enemyTank.yCoord)>200){
+            double degToEnemy= getBearingToTarget(enemyTank.xCoord, enemyTank.yCoord, getX(), getY(), getHeadingRadians());
+            setTurnRightRadians(degToEnemy);
+            setAhead(200);
+            execute();
+        }
+    }
+
+    public double getBearingToTarget(double x, double y, double myX, double myY, double myHeading){
+        double deg = Math.PI/2 - Math.atan2(y - myY, x-myX);
+        return  normalize(deg - myHeading);
     }
 
     @Override
@@ -203,13 +214,12 @@ public class MyRobot extends AdvancedRobot {
     @Override
     public void onWin(WinEvent event) {
         currentReward += winReward;
-
-        // TODO: record game
-        if (numRoundsTo100 < 200) {
-            System.out.println("win: " + numWins);
+        if (numRoundsTo100 < 100) {
             numRoundsTo100++;
             numWins++;
         } else {
+            logOneRound();
+            roundCount ++;
             System.out.println("\n\n !!!!!!!!! " +"win percentage"+ " " + ((numWins/numRoundsTo100) * 100) + "\n\n");
             numRoundsTo100 = 0;
             numWins = 0;
@@ -221,18 +231,23 @@ public class MyRobot extends AdvancedRobot {
     @Override
     public void onDeath(DeathEvent event) {
         currentReward += loseReward;
-
-        // TODO: record game
-        if(numRoundsTo100 < 200){
+        if(numRoundsTo100 < 100){
             numRoundsTo100++;
-            System.out.println("lose: " + (numRoundsTo100 - numWins));
         }else{
+            logOneRound();
+            roundCount ++;
             System.out.println("\n\n !!!!!!!!! " +"win percentage"+ " " + ((numWins/numRoundsTo100) * 100) + "\n\n");
             numRoundsTo100 = 0;
             numWins = 0;
         }
-
         totalNumRounds++;
         agent.train(currentState, currentAction, currentReward, currentAlgo);
+    }
+
+    private void logOneRound(){
+        double winRate = (numWins/numRoundsTo100) * 100;
+        File folderDst2 = getDataFile(fileToSaveName);
+        Log logFile = new Log();
+        logFile.writeToFile(folderDst2, winRate, roundCount);
     }
 }
