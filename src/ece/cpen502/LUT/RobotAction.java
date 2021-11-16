@@ -6,5 +6,5 @@ public class RobotAction {
     public static final int backRight = 4, backLeft = 5;
 
     public static final int actionsCount = 6;
-    public static final double moveDistance = 100.0, moveDegree = 20.0;
+    public static final double moveDistance = 100.0;
 }

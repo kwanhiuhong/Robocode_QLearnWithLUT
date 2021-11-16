@@ -5,7 +5,7 @@ import java.awt.*;
 import java.io.*;
 
 public class MyRobot extends AdvancedRobot {
-    private static LookupTable lut;
+    private static LookupTable lut = new LookupTable();
     private final String fileToSaveName = "robotMiddleReward";
     private final String fileTerminalReward = "robotTerminalReward";
     // --------- game rounds record
@@ -13,7 +13,7 @@ public class MyRobot extends AdvancedRobot {
     private static double numRoundsTo100 = 0;
     private static double numWins = 0;
     private static int roundCount = 1;
-    private double epsilon = 0.5;
+    private static double epsilon = 0.5;
     // --------- state record
     private int currentAction;
     private int currentState;
@@ -48,11 +48,9 @@ public class MyRobot extends AdvancedRobot {
         enemyTank = new EnemyRobot();
         RobotState.initialEnergy = this.getEnergy();
         // -------------------------------- Initialize reinforcement learning parts ------------------------------------
-        lut = new LookupTable();
         agent = new LearningAgent(lut);
         // ------------------------------------------------ Run --------------------------------------------------------
         while (true) {
-            if (totalNumRounds > 10000) epsilon = 0;
             selectRobotAction();
             agent.train(currentState, currentAction, currentReward, currentAlgo);
             this.currentReward = 0;
@@ -212,35 +210,31 @@ public class MyRobot extends AdvancedRobot {
     }
 
     @Override
-    public void onWin(WinEvent event) {
-        currentReward += winReward;
+    public void onRoundEnded(RoundEndedEvent event) {
         if (numRoundsTo100 < 100) {
             numRoundsTo100++;
-            numWins++;
         } else {
             logOneRound();
             roundCount ++;
-            System.out.println("\n\n !!!!!!!!! " +"win percentage"+ " " + ((numWins/numRoundsTo100) * 100) + "\n\n");
+            System.out.println("\n\n !!!!!!!!! " +"win percentage"+ " " + ((numWins / numRoundsTo100) * 100) + "\n\n");
             numRoundsTo100 = 0;
             numWins = 0;
         }
         totalNumRounds++;
+        if (totalNumRounds % 1000 == 0) epsilon = epsilon > 0.05 ? epsilon - 0.05 : 0;
+        System.out.println("total: " + totalNumRounds + ", epsilon:" + epsilon);
+    }
+
+    @Override
+    public void onWin(WinEvent event) {
+        currentReward += winReward;
+        numWins++;
         agent.train(currentState, currentAction, currentReward, currentAlgo);
     }
 
     @Override
     public void onDeath(DeathEvent event) {
         currentReward += loseReward;
-        if(numRoundsTo100 < 100){
-            numRoundsTo100++;
-        }else{
-            logOneRound();
-            roundCount ++;
-            System.out.println("\n\n !!!!!!!!! " +"win percentage"+ " " + ((numWins/numRoundsTo100) * 100) + "\n\n");
-            numRoundsTo100 = 0;
-            numWins = 0;
-        }
-        totalNumRounds++;
         agent.train(currentState, currentAction, currentReward, currentAlgo);
     }
 

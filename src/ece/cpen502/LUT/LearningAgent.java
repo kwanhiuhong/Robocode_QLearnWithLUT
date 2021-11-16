@@ -45,19 +45,10 @@ public class LearningAgent implements CommonInterface {
     }
 
     @Override
-    public void save(File argFile) {
-
-    }
+    public void save(File argFile) {}
 
     @Override
-    public void load(String argFileName) throws IOException {
-
-    }
-
-    public void learn(Pair<Integer, Integer> stateActionPair, double reward){
-        int state = stateActionPair.getKey();
-        int action = stateActionPair.getValue();
-    }
+    public void load(String argFileName) throws IOException {}
 
     public double outputFor(double[] X) { return 0; }
 }

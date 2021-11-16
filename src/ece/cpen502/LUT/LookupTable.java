@@ -1,6 +1,7 @@
 package ece.cpen502.LUT;
 
 import ece.cpen502.Interface.LUTInterface;
+import java.io.File;
 import java.io.IOException;
 import java.util.Random;
 
@@ -10,7 +11,6 @@ public class LookupTable implements LUTInterface {
     public double[][] lookupTable;
     public  int robotID;
 
-    //constructor
     public LookupTable(){
         this.lookupTable = new double[this.numStates][this.numActions];
         this.initialiseLUT();
@@ -27,7 +27,6 @@ public class LookupTable implements LUTInterface {
 
     public double getMax(int state){
         double max = Double.NEGATIVE_INFINITY;
-
         for (double QValue: this.lookupTable[state])
             max = Math.max(QValue, max);
         return max;
@@ -42,14 +41,9 @@ public class LookupTable implements LUTInterface {
         return 0;
     }
 
-    //TODO
-//    public void save(File argFile) {
-//
-//    }
-//
-    public void load(String argFileName) throws IOException {
+    public void save(File argFile) {}
 
-    }
+    public void load(String argFileName) throws IOException {}
 
     @Override
     public void initialiseLUT() {
