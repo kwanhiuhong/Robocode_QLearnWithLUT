@@ -1,8 +1,6 @@
 package ece.cpen502.LUT;
 
 import ece.cpen502.Interface.CommonInterface;
-import javafx.util.Pair;
-
 import java.io.File;
 import java.io.IOException;
 

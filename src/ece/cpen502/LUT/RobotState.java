@@ -52,7 +52,31 @@ public class RobotState {
     }
 
 
-    public static int getState(int distance, int enemyDirection, int direction, int energy, int hitWall, int hitByBullet) {
+    public static int getStateIndex(int distance, int enemyDirection, int direction, int energy, int hitWall, int hitByBullet) {
         return stateMap[distance][enemyDirection][direction][energy][hitWall][hitByBullet];
+    }
+
+    public static int[] getStates(int stateIndex) {
+        int distance, bearing, direction, energy, hitWall, hitByBullet, remainder;
+
+        distance = stateIndex/(numEnemyBearing*numDirection*numEnergy*numHitWall*numHitByBullet);
+        remainder = stateIndex % (numEnemyBearing*numDirection*numEnergy*numHitWall*numHitByBullet);
+        bearing = remainder/(numDirection*numEnergy*numHitWall*numHitByBullet);
+        remainder = remainder % (numDirection*numEnergy*numHitWall*numHitByBullet);
+        direction = remainder/(numEnergy*numHitWall*numHitByBullet);
+        remainder = remainder % (numEnergy*numHitWall*numHitByBullet);
+        energy = remainder/(numHitWall*numHitByBullet);
+        remainder = remainder % (numHitWall*numHitByBullet);
+        hitWall = remainder / (numHitByBullet);
+        hitByBullet = remainder % (numHitByBullet);
+
+        int[] states = new int[6];
+        states[0] = distance;
+        states[1] = bearing;
+        states[2] = direction;
+        states[3] = energy;
+        states[4] = hitWall;
+        states[5] = hitByBullet;
+        return states;
     }
 }
