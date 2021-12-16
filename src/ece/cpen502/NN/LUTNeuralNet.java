@@ -180,7 +180,7 @@ public class LUTNeuralNet implements NeuralNetInterface {
 
         ArrayList<Double> errorList = null;
 
-        for (int trial = 0; trial < 10; trial ++) {
+        for (int trial = 0; trial < 1; trial ++) {
             int epoch = 0;
             errorList = new ArrayList<>();
 
@@ -410,9 +410,9 @@ public class LUTNeuralNet implements NeuralNetInterface {
     }
 
     public static void main(String[] args) throws IOException {
-        double learningRate = 0.1;
-        int noOfHiddenNeurons = 15;
-        double momentum = 0.2;
+        double learningRate = 0.15;
+        int noOfHiddenNeurons = 12;
+        double momentum = 0.15;
 
         //Get LUT from assignment 2 and normalize to range [-1,1]
         LookupTable lut = new LookupTable();

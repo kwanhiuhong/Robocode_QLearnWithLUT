@@ -21,13 +21,15 @@ public class NNRobot extends AdvancedRobot {
     private static double numRoundsTo100 = 1;
     private static double numWins = 0;
     private static int countOf100Round = 0;
-    private static double epsilon = 0.5;
+    private static double epsilon = 0.8;
 
     // --------- state record
     private int actionTaken;
     private double[] state;
-    private double qConvergence = 0;
-    private double actionsCount = 0;
+    private static double qConvergence = 0;
+    private static double trainingCount = 0;
+    private static double actionsCount = 0;
+    private static double gotShotCount = 0;
 
     private final LearningAgentNN.Algo currentAlgo = LearningAgentNN.Algo.QLearn;
 
@@ -40,19 +42,19 @@ public class NNRobot extends AdvancedRobot {
     // -------- reward
     //the reward policy should be killed > bullet hit > hit robot > hit wall > bullet miss > got hit by bullet
     private double currentReward = 0.0;
-    private final double goodInstantReward = 5.0;
-    private final double badInstantReward = -2.0;
-    private final double winReward = 10;
-    private final double loseReward = -10;
+    private final double goodInstantReward = 0.5;
+    private final double badInstantReward = 0.2;
+    private final double winReward = 1;
+    private final double loseReward = -1;
 
     private double fireMagnitude;
     private boolean loadPrevTrainedWeights = true;
 
-    private final boolean memoryReplayModeOn = false;
+    private final boolean memoryReplayModeOn = true;
     private double[] stateT;
     private int actionT;
-    private final int memorySize = 10;
-    private final int miniSetSize = 5;
+    private final int memorySize = 15;
+    private final int miniSetSize = 7;
     private int count = this.memorySize + 1;
     private ReplayMemory<Object> memory = new ReplayMemory<Object>(memorySize);
 
@@ -100,6 +102,7 @@ public class NNRobot extends AdvancedRobot {
                 selectRobotAction(stateBeforeAction);
                 actionsCount++;
                 qConvergence += agent.train(state, actionTaken, currentReward, currentAlgo);
+                trainingCount += 1;
             }
             this.currentReward = 0;
             adjustAndFire();
@@ -233,6 +236,7 @@ public class NNRobot extends AdvancedRobot {
     public void onHitByBullet(HitByBulletEvent e){
         isHitByBullet = 1;
         currentReward -= e.getBullet().getPower();
+        gotShotCount += 1;
 
         // run away from wall and run towards the enemy
         double degToEnemy= getBearingToTarget(enemyTank.xCoord, enemyTank.yCoord, getX(), getY(), getHeadingRadians());
@@ -283,16 +287,22 @@ public class NNRobot extends AdvancedRobot {
         } else {
             countOf100Round ++;
             log100Round();
-            logQConvergence();;
+            logQConvergence();
+            logShotCount();
             System.out.println("\n\n !!!!!!!!! " +"win percentage"+ " " + ((numWins / numRoundsTo100) * 100) + "\n\n");
             numRoundsTo100 = 0;
             numWins = 0;
 
             actionsCount = 0;
             qConvergence = 0;
+            trainingCount = 0;
+            gotShotCount = 0;
         }
         totalNumRounds++;
-        if (totalNumRounds % 1000 == 0) epsilon = epsilon > 0.05 ? epsilon - 0.05 : 0;
+        if (totalNumRounds % 1000 == 0) epsilon = epsilon > 0.05 ? epsilon - 0.1 : 0;
+        if (epsilon <= 0.15){ epsilon = 0.15;}
+
+        System.out.println("See how many times i got shot: " + gotShotCount);
         System.out.println("total: " + totalNumRounds + ", epsilon:" + epsilon);
     }
 
@@ -310,8 +320,16 @@ public class NNRobot extends AdvancedRobot {
         agent.train(state, actionTaken, currentReward, currentAlgo);
     }
 
+    private void logShotCount(){
+        double averageShotCount = gotShotCount / 100;
+        File shotCountFile = getDataFile("shotCount");
+        Log logFile = new Log();
+        logFile.writeToFile(shotCountFile, averageShotCount, countOf100Round);
+
+    }
+
     private void logQConvergence(){
-        double avgQConvergence = qConvergence / actionsCount * 100;
+        double avgQConvergence = qConvergence / trainingCount;
         File qConvergence = getDataFile("qConvergence");
         Log logFile = new Log();
         logFile.writeToFile(qConvergence, avgQConvergence, countOf100Round);
